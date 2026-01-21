@@ -7,14 +7,9 @@ using System.Text.Json;
 
 namespace MeterReading.Function;
 
-public class ReadVodafoneMeter
+public class ReadVodafoneMeter(ILogger<ReadVodafoneMeter> logger)
 {
-    private readonly ILogger<ReadVodafoneMeter> _logger;
-
-    public ReadVodafoneMeter(ILogger<ReadVodafoneMeter> logger)
-    {
-        _logger = logger;
-    }
+    private readonly ILogger<ReadVodafoneMeter> _logger = logger;
 
     [Function(nameof(ReadVodafoneMeter))]
     public async Task Run(
@@ -31,11 +26,9 @@ public class ReadVodafoneMeter
         if (meter is null)
         {
             _logger.LogError("Failed to deserialize Meter from message body. MessageId: {id}", message.MessageId);
-            // Optionally abandon or dead-letter the message here if required by your logic
             return;
         }
 
-        // Complete the message
         await messageActions.CompleteMessageAsync(message);
     }
 }

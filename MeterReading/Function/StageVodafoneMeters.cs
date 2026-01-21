@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace MeterReading.Function;
 
-public class StageVodafoneMeters(ILoggerFactory loggerFactory, IStagingMeterService stagingMeterService) //IConfiguration config, 
+public class StageVodafoneMeters(ILoggerFactory loggerFactory, IStagingMeterService stagingMeterService)
 {
     private readonly ILogger _logger = loggerFactory.CreateLogger<StageVodafoneMeters>();
 

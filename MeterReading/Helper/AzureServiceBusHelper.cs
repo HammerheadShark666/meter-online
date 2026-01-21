@@ -4,24 +4,10 @@ using System.Collections.Concurrent;
 
 namespace MeterReading.Helper;
 
-//internal class AzureServiceBusHelper(ServiceBusClient serviceBusClient) : IAzureServiceBusHelper
-//{
-//public async Task SendMessageAsync(string queue, string data)
-//{
-//    var sender = serviceBusClient.CreateSender(queue);
-//    await sender.SendMessageAsync(new ServiceBusMessage(data));
-//}
-//}
-
-internal class AzureServiceBusHelper : IAzureServiceBusHelper, IAsyncDisposable
+internal class AzureServiceBusHelper(ServiceBusClient client) : IAzureServiceBusHelper, IAsyncDisposable
 {
-    private readonly ServiceBusClient _client;
+    private readonly ServiceBusClient _client = client;
     private readonly ConcurrentDictionary<string, ServiceBusSender> _senders = new();
-
-    public AzureServiceBusHelper(ServiceBusClient client)
-    {
-        _client = client;
-    }
 
     public async Task SendMessagesAsync(string queue, IEnumerable<string> meters)
     {
