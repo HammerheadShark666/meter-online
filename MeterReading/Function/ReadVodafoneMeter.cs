@@ -18,7 +18,7 @@ public class ReadVodafoneMeter
 
     [Function(nameof(ReadVodafoneMeter))]
     public async Task Run(
-        [ServiceBusTrigger(ServiceBusQueues.StagingMeterVodafoneQueue, Connection = "AZURE_SERVICE_BUS_CONNECTION")]
+        [ServiceBusTrigger(ServiceBusQueues.StagingMeterVodafoneQueue, Connection = ServiceBus.AzureServiceBusConnection)]
         ServiceBusReceivedMessage message,
         ServiceBusMessageActions messageActions)
     {
