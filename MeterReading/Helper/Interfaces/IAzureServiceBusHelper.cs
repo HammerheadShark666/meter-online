@@ -2,5 +2,5 @@
 
 public interface IAzureServiceBusHelper
 {
-    Task SendMessageAsync(string queue, string data);
+    Task SendMessagesAsync(string queue, IEnumerable<string> meters);
 }

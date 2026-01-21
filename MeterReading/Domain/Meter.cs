@@ -27,4 +27,10 @@ public class Meter
     [BsonElement("userId")]
     [BsonRepresentation(BsonType.ObjectId)]
     public required string UserId { get; set; }
+
+    [BsonElement("lastReading")]
+    public double lastReading { get; set; }
+
+    [BsonElement("lastReadOn")]
+    public DateTime lastReadOn { get; set; }
 }

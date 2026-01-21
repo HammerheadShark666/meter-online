@@ -1,5 +1,4 @@
-﻿using MeterReading.Function.Helpers;
-using MeterReading.Function.Helpers.Interfaces;
+﻿using MeterReading.Function.Helpers.Interfaces;
 using MeterReading.Helper.Interfaces;
 using MeterReading.Service;
 using MeterReading.Service.Interface;
@@ -32,7 +31,7 @@ public static class ServiceExtensions
 
         services.AddAzureClients(builder =>
         {
-            builder.AddServiceBusClient(EnvironmentVariables.GetEnvironmentVariable(azureServiceBusConnection));
+            builder.AddServiceBusClient(azureServiceBusConnection);
         });
     }
 }

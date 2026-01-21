@@ -11,14 +11,16 @@ public class StageVodafoneMeters(ILoggerFactory loggerFactory, IStagingMeterServ
     [Function("StageVodafoneMeters")]
     public async Task Run([TimerTrigger("0 */2 * * * *")] TimerInfo myTimer)
     {
-        _logger.LogInformation("C# Timer trigger function executed at: {Time}", DateTime.Now);
+        _logger.LogInformation("StageVodafoneMeters started at {Time}", DateTime.UtcNow);
 
-
-        if (myTimer.ScheduleStatus is not null)
+        try
         {
-            _logger.LogInformation("Next timer schedule at: {Time}", myTimer.ScheduleStatus.Next);
+            await stagingMeterService.StageVodafoneMetersForReading();
         }
-
-        await stagingMeterService.StageVodafoneMetersForReading();
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "StageVodafoneMeters failed");
+            throw;
+        }
     }
 }
