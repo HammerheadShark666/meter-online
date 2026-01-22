@@ -10,6 +10,7 @@ using MongoDB.Driver;
 using System.Text.Json;
 
 namespace MeterReading.Service;
+
 internal sealed class StagingMeterService(IAzureServiceBusHelper azureServiceBusHelper, IMongoDbHelper mongoDbHelper, ILoggerFactory loggerFactory) : IStagingMeterService
 {
     private readonly ILogger _logger = loggerFactory.CreateLogger<StageVodafoneMeters>();
@@ -18,16 +19,25 @@ internal sealed class StagingMeterService(IAzureServiceBusHelper azureServiceBus
     {
         try
         {
-            var database = mongoDbHelper.GetDatabase();
-            var metersCollection = database.GetCollection<Meter>(MongoCollections.Meters);
+            //var database = mongoDbHelper.GetDatabase();
+            //var metersCollection = database.GetCollection<Meter>(MongoCollections.Meters);
 
-            var filter = Builders<Meter>.Filter.Regex(
-                m => m.TelecomsProvider,
-                MongoBsonHelper.ExactMatch(Constants.TelecomsVodafone));
+            ////var filter = Builders<Meter>.Filter.Regex(
+            ////    m => m.TelecomsProvider,
+            ////    MongoBsonHelper.ExactMatch(Constants.TelecomsVodafone));
 
-            var documents = await metersCollection.Find(filter).ToListAsync();
 
-            if (!documents.Any())
+            //var builder = Builders<Meter>.Filter;
+
+            //var filter =
+            //    builder.Regex(m => m.TelecomsProvider, MongoBsonHelper.ExactMatch(Constants.TelecomsVodafone)) &
+            //    builder.Eq(m => m.MeterType, MeterType.Solar);
+
+            //var documents = await metersCollection.Find(filter).ToListAsync();
+
+            var meters = await GetMeters();
+
+            if (meters.Count == 0)
             {
                 _logger.LogInformation("No Vodafone meters found to stage.");
                 return;
@@ -37,9 +47,9 @@ internal sealed class StagingMeterService(IAzureServiceBusHelper azureServiceBus
             int batchCount = 0;
             const int batchSize = 200;
 
-            foreach (var doc in documents)
+            foreach (var meter in meters)
             {
-                metersToRead.Add(JsonSerializer.Serialize(doc));
+                metersToRead.Add(JsonSerializer.Serialize(meter));
                 batchCount++;
 
                 if (batchCount == batchSize)
@@ -50,12 +60,12 @@ internal sealed class StagingMeterService(IAzureServiceBusHelper azureServiceBus
                 }
             }
 
-            if (metersToRead.Any())
+            if (metersToRead.Count > 0)
             {
                 await azureServiceBusHelper.SendMessagesAsync(ServiceBusQueues.StagingMeterVodafoneQueue, metersToRead);
             }
 
-            _logger.LogInformation("Successfully staged {Count} Vodafone meters", documents.Count);
+            _logger.LogInformation("Successfully staged {Count} Vodafone meters", meters.Count);
         }
         catch (MongoException ex)
         {
@@ -67,5 +77,26 @@ internal sealed class StagingMeterService(IAzureServiceBusHelper azureServiceBus
             _logger.LogError(ex, "Service Bus failure while staging Vodafone meters");
             throw;
         }
+    }
+
+    private async Task<List<Meter>> GetMeters()
+    {
+        var database = mongoDbHelper.GetDatabase();
+        var metersCollection = database.GetCollection<Meter>(MongoCollections.Meters);
+
+        //var filter = Builders<Meter>.Filter.Regex(
+        //    m => m.TelecomsProvider,
+        //    MongoBsonHelper.ExactMatch(Constants.TelecomsVodafone));
+
+
+        var builder = Builders<Meter>.Filter;
+
+        var filter =
+            builder.Regex(m => m.TelecomsProvider, MongoBsonHelper.ExactMatch(Constants.TelecomsVodafone)) &
+            builder.Eq(m => m.MeterType, MeterType.Solar);
+
+        var meters = await metersCollection.Find(filter).ToListAsync();
+
+        return meters;
     }
 }
