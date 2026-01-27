@@ -2,6 +2,7 @@
 using MongoDB.Driver;
 
 namespace MeterReading.Helper;
+
 public class MongoDbHelper() : IMongoDbHelper
 {
     private readonly string _connectionString = EnvironmentVariables.GetEnvironmentVariable(MongoSettings.ConnectionString);

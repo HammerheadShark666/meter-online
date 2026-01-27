@@ -1,9 +1,15 @@
 ﻿namespace MeterReading.Helper;
+
 internal static class Constants
 {
     public const string TelecomsVodafone = "vodafone";
     public const string TelecomsO2 = "O2";
     public const string TelecomsEE = "EE";
+}
+
+internal static class MeterType
+{
+    public const string Solar = "solar";
 }
 
 internal static class MongoSettings
@@ -26,4 +32,10 @@ internal static class ServiceBus
 internal static class ServiceBusQueues
 {
     public const string StagingMeterVodafoneQueue = "sbq-staging-read-vodafone";
+}
+
+internal static class ReadMeterValue
+{
+    public const double MinValue = 0.0;
+    public const double MaxValue = 150.0;
 }
