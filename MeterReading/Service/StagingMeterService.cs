@@ -1,7 +1,5 @@
 ﻿using Azure.Messaging.ServiceBus;
 using MeterReading.Domain;
-using MeterReading.Function;
-using MeterReading.Function.Helpers.Interfaces;
 using MeterReading.Helper;
 using MeterReading.Helper.Interfaces;
 using MeterReading.Service.Interface;
@@ -11,58 +9,36 @@ using System.Text.Json;
 
 namespace MeterReading.Service;
 
-internal sealed class StagingMeterService(IAzureServiceBusHelper azureServiceBusHelper, IMongoDbHelper mongoDbHelper, ILoggerFactory loggerFactory) : IStagingMeterService
+internal sealed class StagingMeterService(
+    IAzureServiceBusHelper azureServiceBusHelper,
+    IMongoDbHelper mongoDbHelper,
+    ILoggerFactory loggerFactory) : IStagingMeterService
 {
-    private readonly ILogger _logger = loggerFactory.CreateLogger<StageVodafoneMeters>();
+    private readonly ILogger _logger = loggerFactory.CreateLogger<StagingMeterService>();
 
     public async Task StageVodafoneMetersForReading()
     {
         try
         {
-            //var database = mongoDbHelper.GetDatabase();
-            //var metersCollection = database.GetCollection<Meter>(MongoCollections.Meters);
-
-            ////var filter = Builders<Meter>.Filter.Regex(
-            ////    m => m.TelecomsProvider,
-            ////    MongoBsonHelper.ExactMatch(Constants.TelecomsVodafone));
-
-
-            //var builder = Builders<Meter>.Filter;
-
-            //var filter =
-            //    builder.Regex(m => m.TelecomsProvider, MongoBsonHelper.ExactMatch(Constants.TelecomsVodafone)) &
-            //    builder.Eq(m => m.MeterType, MeterType.Solar);
-
-            //var documents = await metersCollection.Find(filter).ToListAsync();
-
             var meters = await GetMeters();
 
-            if (meters.Count == 0)
+            if (!meters.Any())
             {
                 _logger.LogInformation("No Vodafone meters found to stage.");
                 return;
             }
 
-            var metersToRead = new List<string>();
-            int batchCount = 0;
             const int batchSize = 200;
 
-            foreach (var meter in meters)
+            foreach (var batch in meters.Chunk(batchSize))
             {
-                metersToRead.Add(JsonSerializer.Serialize(meter));
-                batchCount++;
+                var payloads = batch
+                    .Select(m => JsonSerializer.Serialize(m))
+                    .ToList();
 
-                if (batchCount == batchSize)
-                {
-                    await azureServiceBusHelper.SendMessagesAsync(ServiceBusQueues.StagingMeterVodafoneQueue, metersToRead);
-                    batchCount = 0;
-                    metersToRead.Clear();
-                }
-            }
-
-            if (metersToRead.Count > 0)
-            {
-                await azureServiceBusHelper.SendMessagesAsync(ServiceBusQueues.StagingMeterVodafoneQueue, metersToRead);
+                await azureServiceBusHelper.SendMessagesInBatchAsync(
+                    ServiceBusQueues.StagingMeterVodafoneQueue,
+                    payloads);
             }
 
             _logger.LogInformation("Successfully staged {Count} Vodafone meters", meters.Count);
@@ -84,19 +60,10 @@ internal sealed class StagingMeterService(IAzureServiceBusHelper azureServiceBus
         var database = mongoDbHelper.GetDatabase();
         var metersCollection = database.GetCollection<Meter>(MongoCollections.Meters);
 
-        //var filter = Builders<Meter>.Filter.Regex(
-        //    m => m.TelecomsProvider,
-        //    MongoBsonHelper.ExactMatch(Constants.TelecomsVodafone));
+        var filter = Builders<Meter>.Filter.And(
+            Builders<Meter>.Filter.Regex(m => m.TelecomsProvider, MongoBsonHelper.ExactMatch(Constants.TelecomsVodafone)),
+            Builders<Meter>.Filter.Eq(m => m.MeterType, MeterType.Solar));
 
-
-        var builder = Builders<Meter>.Filter;
-
-        var filter =
-            builder.Regex(m => m.TelecomsProvider, MongoBsonHelper.ExactMatch(Constants.TelecomsVodafone)) &
-            builder.Eq(m => m.MeterType, MeterType.Solar);
-
-        var meters = await metersCollection.Find(filter).ToListAsync();
-
-        return meters;
+        return await metersCollection.Find(filter).ToListAsync();
     }
 }

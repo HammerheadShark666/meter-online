@@ -32,10 +32,11 @@ internal static class ServiceBus
 internal static class ServiceBusQueues
 {
     public const string StagingMeterVodafoneQueue = "sbq-staging-read-vodafone";
+    public const string SuccessfullyReadMeterVodafoneQueue = "sbq-successfully-read-vodafone";
 }
 
 internal static class ReadMeterValue
 {
-    public const double MinValue = 0.0;
-    public const double MaxValue = 150.0;
+    public const decimal MinValue = (decimal)0.0;
+    public const decimal MaxValue = (decimal)150.0;
 }

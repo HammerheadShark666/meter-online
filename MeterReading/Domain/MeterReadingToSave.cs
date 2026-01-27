@@ -16,7 +16,7 @@ public class MeterReadingToSave
     public required string UserId { get; set; }
 
     [BsonElement("lastReading")]
-    public double LastReading { get; set; }
+    public decimal LastReading { get; set; }
 
     [BsonElement("lastReadOn")]
     public DateTime LastReadOn { get; set; }
