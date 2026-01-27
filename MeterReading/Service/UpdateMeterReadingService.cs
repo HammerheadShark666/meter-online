@@ -28,7 +28,7 @@ public class UpdateMeterReadingService(ILogger<UpdateMeterReadingService> logger
 
             await messageActions.DeadLetterMessageAsync(
                 message,
-                deadLetterReason: "Invalid Meter Reading Message",
+                deadLetterReason: "Failed to deserialize meter reading message",
                 deadLetterErrorDescription: ex.Message);
 
             return;
@@ -36,14 +36,25 @@ public class UpdateMeterReadingService(ILogger<UpdateMeterReadingService> logger
 
         logger.LogInformation("Processing meter reading {@MeterReading}", meterReading);
 
-        await UpdateMeterReadingInDatabase(meterReading, message, messageActions);
+        if (!await UpdateMeterReadingInDatabase(meterReading))
+        {
+            logger.LogWarning(
+                "Meter not found or reading is not newer. Id: {Id}, MeterNumber: {MeterNumber}",
+                meterReading.Id,
+                meterReading.MeterNumber);
+
+            await messageActions.DeadLetterMessageAsync(
+                message,
+                deadLetterReason: "Meter Not Found or Stale Reading",
+                deadLetterErrorDescription: "No matching meter found or reading was older than existing value");
+        }
 
         logger.LogInformation("Meter reading updated successfully");
 
         await messageActions.CompleteMessageAsync(message);
     }
 
-    private async Task UpdateMeterReadingInDatabase(MeterReadingToSave meterReading, ServiceBusReceivedMessage message, ServiceBusMessageActions messageActions)
+    private async Task<bool> UpdateMeterReadingInDatabase(MeterReadingToSave meterReading)
     {
         var database = mongoDbHelper.GetDatabase();
         var metersCollection = database.GetCollection<Meter>(MongoCollections.Meters);
@@ -62,28 +73,20 @@ public class UpdateMeterReadingService(ILogger<UpdateMeterReadingService> logger
         var result = await metersCollection.UpdateOneAsync(filter, update);
 
         if (result.MatchedCount == 0)
-        {
-            logger.LogWarning(
-                "Meter not found or reading is not newer. Id: {Id}, MeterNumber: {MeterNumber}",
-                meterReading.Id,
-                meterReading.MeterNumber);
+            return false;
 
-            await messageActions.DeadLetterMessageAsync(
-                message,
-                deadLetterReason: "Meter Not Found or Stale Reading",
-                deadLetterErrorDescription: "No matching meter found or reading was older than existing value");
-
-            return;
-        }
+        return true;
     }
 
     private static MeterReadingToSave Deserialize(ServiceBusReceivedMessage message)
     {
-        var meter = JsonSerializer.Deserialize<MeterReadingToSave>(
-            message.Body,
-            JsonHelper.JsonOptions);
+        if (message.Body == null)
+            throw new MeterNotDeserialisedException("Message body was null");
 
-        return meter ?? throw new MeterNotDeserialisedException(
+        return JsonSerializer.Deserialize<MeterReadingToSave>(
+            message.Body,
+            JsonHelper.JsonOptions
+        ) ?? throw new MeterNotDeserialisedException(
             "Meter payload was null after deserialization");
     }
 }
