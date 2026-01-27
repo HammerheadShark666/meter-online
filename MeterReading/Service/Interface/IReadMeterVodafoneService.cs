@@ -1,6 +1,9 @@
-﻿namespace MeterReading.Service.Interface;
+﻿using Azure.Messaging.ServiceBus;
+using Microsoft.Azure.Functions.Worker;
+
+namespace MeterReading.Service.Interface;
 
 public interface IReadMeterVodafoneService
 {
-    decimal ReadMeter(string meterNumber, string ConnectionNumber, decimal lastReadingValue);
+    Task ReadMeter(ServiceBusReceivedMessage message, ServiceBusMessageActions messageActions);
 }

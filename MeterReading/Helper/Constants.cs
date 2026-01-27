@@ -40,3 +40,8 @@ internal static class ReadMeterValue
     public const decimal MinValue = (decimal)0.0;
     public const decimal MaxValue = (decimal)150.0;
 }
+
+internal static class AzureBusService
+{
+    public const int BatchMaxMessageCount = 100;
+}

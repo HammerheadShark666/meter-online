@@ -13,6 +13,7 @@ public static class ServiceExtensions
         services.AddScoped<IAzureServiceBusHelper, AzureServiceBusHelper>();
         services.AddScoped<IMongoDbHelper, MeterReading.Helper.MongoDbHelper>();
         services.AddScoped<IReadMeterVodafoneService, ReadMeterVodafoneService>();
+        services.AddScoped<IUpdateMeterReadingService, UpdateMeterReadingService>();
     }
 
     public static void ConfigureApplicationInsightsTelemetryWorkerService(this IServiceCollection services)

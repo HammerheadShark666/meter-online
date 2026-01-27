@@ -9,28 +9,20 @@ using System.Text.Json;
 
 namespace MeterReading.Service;
 
-internal sealed class StagingMeterService(
-    IAzureServiceBusHelper azureServiceBusHelper,
-    IMongoDbHelper mongoDbHelper,
-    ILoggerFactory loggerFactory) : IStagingMeterService
+internal sealed class StagingMeterService(ILogger<StagingMeterService> logger, IAzureServiceBusHelper azureServiceBusHelper, IMongoDbHelper mongoDbHelper) : IStagingMeterService
 {
-    private readonly ILogger _logger = loggerFactory.CreateLogger<StagingMeterService>();
-
     public async Task StageVodafoneMetersForReading()
     {
         try
         {
             var meters = await GetMeters();
-
-            if (!meters.Any())
+            if (meters.Count == 0)
             {
-                _logger.LogInformation("No Vodafone meters found to stage.");
+                logger.LogInformation("No Vodafone meters found to stage.");
                 return;
             }
 
-            const int batchSize = 200;
-
-            foreach (var batch in meters.Chunk(batchSize))
+            foreach (var batch in meters.Chunk(AzureBusService.BatchMaxMessageCount))
             {
                 var payloads = batch
                     .Select(m => JsonSerializer.Serialize(m))
@@ -41,16 +33,16 @@ internal sealed class StagingMeterService(
                     payloads);
             }
 
-            _logger.LogInformation("Successfully staged {Count} Vodafone meters", meters.Count);
+            logger.LogInformation("Successfully staged {Count} Vodafone meters", meters.Count);
         }
         catch (MongoException ex)
         {
-            _logger.LogError(ex, "MongoDB failure while staging Vodafone meters");
+            logger.LogError(ex, "MongoDB failure while staging Vodafone meters");
             throw;
         }
         catch (ServiceBusException ex)
         {
-            _logger.LogError(ex, "Service Bus failure while staging Vodafone meters");
+            logger.LogError(ex, "Service Bus failure while staging Vodafone meters");
             throw;
         }
     }
@@ -64,6 +56,6 @@ internal sealed class StagingMeterService(
             Builders<Meter>.Filter.Regex(m => m.TelecomsProvider, MongoBsonHelper.ExactMatch(Constants.TelecomsVodafone)),
             Builders<Meter>.Filter.Eq(m => m.MeterType, MeterType.Solar));
 
-        return await metersCollection.Find(filter).ToListAsync();
+        return await metersCollection.Find(filter).Limit(10).ToListAsync();
     }
 }
