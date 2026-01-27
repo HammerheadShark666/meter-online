@@ -1,6 +1,9 @@
-﻿namespace MeterReading.Function.Helpers.Interfaces;
+﻿using MeterReading.Domain;
+
+namespace MeterReading.Helper.Interfaces;
 
 public interface IAzureServiceBusHelper
 {
-    Task SendMessagesAsync(string queue, IEnumerable<string> meters);
+    Task SendMessagesInBatchAsync(string queue, IEnumerable<string> meters);
+    Task SendMessageAsync(string queue, MeterReadingToSave meterReadingToSave);
 }

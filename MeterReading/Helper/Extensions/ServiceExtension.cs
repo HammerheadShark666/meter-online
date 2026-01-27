@@ -1,5 +1,4 @@
-﻿using MeterReading.Function.Helpers.Interfaces;
-using MeterReading.Helper.Interfaces;
+﻿using MeterReading.Helper.Interfaces;
 using MeterReading.Service;
 using MeterReading.Service.Interface;
 using Microsoft.Extensions.Azure;

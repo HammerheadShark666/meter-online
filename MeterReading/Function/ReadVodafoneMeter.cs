@@ -1,6 +1,8 @@
 using Azure.Messaging.ServiceBus;
 using MeterReading.Domain;
 using MeterReading.Helper;
+using MeterReading.Helper.Exceptions;
+using MeterReading.Helper.Interfaces;
 using MeterReading.Service.Interface;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
@@ -8,10 +10,8 @@ using System.Text.Json;
 
 namespace MeterReading.Function;
 
-public class ReadVodafoneMeter(ILogger<ReadVodafoneMeter> logger, IReadMeterVodafoneService readMeterVodafoneService)
+public class ReadVodafoneMeter(ILogger<ReadVodafoneMeter> logger, IReadMeterVodafoneService readMeterVodafoneService, IAzureServiceBusHelper azureServiceBusHelper)
 {
-    private readonly ILogger<ReadVodafoneMeter> _logger = logger;
-
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -23,79 +23,79 @@ public class ReadVodafoneMeter(ILogger<ReadVodafoneMeter> logger, IReadMeterVoda
         ServiceBusReceivedMessage message,
         ServiceBusMessageActions messageActions)
     {
-        using (_logger.BeginScope("MessageId: {MessageId}", message.MessageId))
+        using var scope = logger.BeginScope("MessageId: {MessageId}", message.MessageId);
+
+        var meter = await GetMeterAsync(message, messageActions)
+            ?? throw new MeterNotDeserialisedException($"Meter failed to deserialise MessageId: {message.MessageId}");
+
+        try
         {
-            Meter? meter;
+            if (meter.MeterNumber.Equals("8515111350"))
+                throw new MeterNotReadException("Failed meter reading for testing Dead Letter Queue");
 
-            try
-            {
-                meter = JsonSerializer.Deserialize<Meter>(message.Body, JsonOptions);
-            }
-            catch (JsonException ex)
-            {
-                _logger.LogError(ex, "Failed to deserialize Meter message");
-                await messageActions.DeadLetterMessageAsync(
-                    message,
-                    deadLetterReason: "Deserialization Failed",
-                    deadLetterErrorDescription: ex.Message);
-                return;
-            }
 
-            if (meter is null)
+            var latestReading = readMeterVodafoneService.ReadMeter(
+                meter.MeterNumber,
+                meter.ConnectionNumber,
+                meter.LastReading);
+
+            var meterReadingToSave = new MeterReadingToSave()
             {
-                _logger.LogError("Meter payload was null after deserialization");
+                Id = meter.Id,
+                MeterNumber = meter.MeterNumber,
+                UserId = meter.UserId,
+                LastReading = latestReading,
+                LastReadOn = DateTime.UtcNow
+            };
+
+            await azureServiceBusHelper.SendMessageAsync(ServiceBusQueues.SuccessfullyReadMeterVodafoneQueue, meterReadingToSave);
+
+            await messageActions.CompleteMessageAsync(message);
+        }
+        catch (MeterNotReadException mrex)
+        {
+            logger.LogError("Meter failed to read - {meterNumber}", meter.MeterNumber);
+            await messageActions.DeadLetterMessageAsync(
+                message,
+                deadLetterReason: "Meter failed to read",
+                deadLetterErrorDescription: mrex.Message);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed while processing meter {MeterNumber}", meter.MeterNumber);
+            throw;
+        }
+    }
+
+    private async Task<Meter?> GetMeterAsync(ServiceBusReceivedMessage message, ServiceBusMessageActions messageActions)
+    {
+        try
+        {
+            var meter = JsonSerializer.Deserialize<Meter>(message.Body, JsonOptions);
+            if (meter == null)
+            {
+                logger.LogError("Meter payload was null after deserialization");
+
                 await messageActions.DeadLetterMessageAsync(
                     message,
                     deadLetterReason: "Invalid Meter",
                     deadLetterErrorDescription: "Meter was null");
-                return;
+
+                return null;
             }
 
-            try
-            {
-                var latestReading = readMeterVodafoneService.ReadMeter(
-                    meter.MeterNumber,
-                    meter.ConnectionNumber,
-                    meter.LastReading);
-
-                var meterReadingToSave = new MeterReadingToSave()
-                {
-                    Id = meter.Id,
-                    MeterNumber = meter.MeterNumber,
-                    UserId = meter.UserId,
-                    LastReading = latestReading,
-                    LastReadOn = DateTime.UtcNow
-                };
-
-                // TODO: send updated meter to next queue
-
-                await messageActions.CompleteMessageAsync(message);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed while processing meter {MeterNumber}", meter.MeterNumber);
-                throw;
-            }
-
-
+            return meter;
         }
+        catch (JsonException ex)
+        {
+            logger.LogError(ex, "Failed to deserialize Meter message");
 
+            await messageActions.DeadLetterMessageAsync(
+                message,
+                deadLetterReason: "Deserialization Failed",
+                deadLetterErrorDescription: ex.Message);
 
-        //    Meter? meter = JsonSerializer.Deserialize<Meter>(message.Body);
-        //if (meter is null)
-        //{
-        //    _logger.LogError("Failed to deserialize Meter from message body. MessageId: {id}", message.MessageId);
-        //    return;
-        //}
-
-        //var latestReading = readMeterVodafoneService.ReadMeter(meter.MeterNumber, meter.ConnectionNumber, meter.lastReading);
-
-        //meter.lastReading = latestReading;
-        //meter.lastReadOn = DateTime.UtcNow;
-
-        ////serialize updated meter and send to updating queue    
-
-
-        //await messageActions.CompleteMessageAsync(message);
+            return null;
+        }
     }
 }

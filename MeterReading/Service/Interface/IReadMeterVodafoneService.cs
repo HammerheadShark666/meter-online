@@ -2,5 +2,5 @@
 
 public interface IReadMeterVodafoneService
 {
-    double ReadMeter(string meterNumber, string ConnectionNumber, double lastReadingValue);
+    decimal ReadMeter(string meterNumber, string ConnectionNumber, decimal lastReadingValue);
 }
